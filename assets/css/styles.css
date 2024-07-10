@@ -1,0 +1,61 @@
+body, html {
+    height: 100vh;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: Arial, sans-serif;
+  }
+  
+  .building {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .floor {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    align-items: center;
+  }
+
+  .floor-label {
+    text-align: right;
+    margin-right: 16px;
+  }
+
+  .floor-elevator-door {
+    border: 1px solid lightgray;
+    height: 64px;
+    width: 120px;
+    background-color: white;
+  }
+
+  .floor-call-button {
+    margin-left: 16px;
+    background-color: limegreen;
+    border: none;
+    outline: none;
+    padding: 8px 16px;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .call-button-waiting {
+    background-color: tomato;
+  }
+
+  .call-button-arrived {
+    border: 1px solid limegreen;
+    background-color: transparent;
+    color: limegreen;
+  }
+
+  .elevators {
+    display: flex;
+    justify-content: space-evenly;
+  }
+
+  .elevator {
+    width: 46px;
+  }
