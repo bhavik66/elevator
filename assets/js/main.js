@@ -11,8 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const elevatorDing = document.getElementById('elevatorDing');
 
     const elevatorStates = Array.from({ length: elevators.length }, () => ({
+      targetFloor: 1,
       currentFloor: 1,
-      isOccupied: false
+      isOccupied: false,
+      currentFloorInterval: null
     }));
 
     const waitingState = []
@@ -22,10 +24,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function initialSetElevator() {
         elevators.forEach((elevator, index) => {
             const state = elevatorStates[index];
+            state.targetFloor = 1;
             state.currentFloor = 1;
             state.isOccupied = false;
             
-            elevator.style.transform = `translateY(${getElevatorPositionFromFloor(state.currentFloor)}px)`;
+            elevator.style.transform = `translateY(${getElevatorPositionFromFloor(state.targetFloor)}px)`;
         });
     }
 
@@ -36,8 +39,12 @@ document.addEventListener('DOMContentLoaded', () => {
     buttons.forEach(button => {
         button.addEventListener('click', function() {
             const floorNumber = parseInt(this.dataset.floor);
-            this.disabled = true;
-            handleElevatorCall(floorNumber, this);
+
+            if(this.dataset?.state == 'waiting') {
+                this.dataset.state = 'cancelled'
+            } else {
+                handleElevatorCall(floorNumber);
+            }
         });
     });
   
@@ -45,6 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const button = document.querySelector(`.floor-call-button[data-floor="${floorNumber}"]`);
         button.classList.add('call-button-waiting');
         button.textContent = 'Waiting';
+        button.dataset.state = 'waiting';
 
         const {closest, minDistance} = findClosestElevatorAndDistance(floorNumber);
 
@@ -60,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let closest = null;
 
         elevatorStates.forEach((state, index) => {
-            const distance = Math.abs(state.currentFloor - targetFloor);
+            const distance = Math.abs(state.targetFloor - targetFloor);
             if (distance < minDistance && !state.isOccupied) {
                 minDistance = distance;
                 closest = index;
@@ -79,63 +87,90 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalTime = distance * ELEVATOR_SPEED;
         let timeCounter = totalTime
 
-        const interval = setInterval(() => { 
-            if(timeCounter > 0) {
-                timeCounter -= 0.1
-                elevatorDoor.textContent = `${timeCounter.toFixed(1)}sec`
-            } else {
-                elevatorDoor.textContent = ''
-            }
-        }, 100)
-
-
+        const state = elevatorStates[elevatorIndex];
+        state.isOccupied = true;
+        state.targetFloor = targetFloor;
+        
         const elevator = elevators[elevatorIndex];
         
         const elevatorSvg = elevator.querySelector('svg');
         const elevatorSvgPath = elevatorSvg.querySelector('path');
         elevatorSvgPath.style.fill = 'tomato';
 
-        const state = elevatorStates[elevatorIndex];
-        state.isOccupied = true;
-        state.currentFloor = targetFloor;
-        style = {
-            transition: `transform ${totalTime}s linear`,
-            transform: `translateY(${getElevatorPositionFromFloor(targetFloor)}px)`,
-        }
-        Object.assign(elevator.style, style);
-
-        setTimeout(() => {
-
-            elevatorSvgPath.style.fill = 'limegreen';
-
-            button.classList.remove('call-button-waiting');
-            button.classList.add('call-button-arrived');
-            button.textContent = 'Arrived';
-            
-            elevatorDing.currentTime = 0;
-            elevatorDing.play()
-
-            setTimeout(() => {
-
-                state.isOccupied = false;
-
-                elevatorSvgPath.style.fill = 'black';
-                
-                button.classList.remove('call-button-arrived');
-                button.textContent = 'Call';
-                button.disabled = false;
-
-                if(waitingState.length > 0) {
-                    const targetFloor = waitingState.shift();
-                    handleElevatorCall(targetFloor);
-                }
-
+        state.currentFloorInterval = setInterval(() => {
+ 
+            if(timeCounter > 0) {
+                timeCounter -= ELEVATOR_SPEED
+                elevatorDoor.textContent = `${timeCounter.toFixed(1)}sec`
+            } else {
                 elevatorDoor.textContent = ''
-                clearInterval(interval)
+            }
 
-            }, ARRIVED_WAITING * 1000);
-        }, totalTime * 1000);
+            if(button.dataset.state == 'cancelled') {
+                state.targetFloor = state.currentFloor
+                state.isOccupied = false
+                button.classList.remove('call-button-waiting');
+                elevatorDoor.textContent = ''
+
+                clearInterval(state.currentFloorInterval)
+                reset(elevatorSvgPath, button);
+
+                return
+            }
+
+            if(state.currentFloor < targetFloor) {
+                state.currentFloor += 1
+            } else if(state.currentFloor > targetFloor) {
+                state.currentFloor -= 1
+            } else {
+
+                elevatorSvgPath.style.fill = 'limegreen';
+
+                button.disabled = true
+                button.classList.remove('call-button-waiting');
+                button.classList.add('call-button-arrived');
+                button.textContent = 'Arrived';
+                button.dataset.state = 'arrived';
+
+                elevatorDing.currentTime = 0;
+                elevatorDing.play()
+    
+                clearInterval(state.currentFloorInterval)
+
+                setTimeout(() => {
+    
+                    state.isOccupied = false;
+                    
+                    button.classList.remove('call-button-arrived');
+                    reset(elevatorSvgPath, button)
+                    
+    
+                    if(waitingState.length > 0) {
+                        const targetFloor = waitingState.shift();
+                        handleElevatorCall(targetFloor);
+                    }
+    
+                    elevatorDoor.textContent = ''
+    
+                }, ARRIVED_WAITING * 1000);
+            }
+            
+            style = {
+                transition: `transform ${ELEVATOR_SPEED}s linear`,
+                transform: `translateY(${getElevatorPositionFromFloor(state.currentFloor)}px)`,
+            }
+
+            Object.assign(elevator.style, style);
+            
+        }, ELEVATOR_SPEED * 1000)
     }
 
+    function reset(elevatorSvgPath, button) {
+        elevatorSvgPath.style.fill = 'black';
+
+        button.textContent = 'Call';
+        button.dataset.state = 'call';
+        button.disabled = false;
+    }
   });
   
